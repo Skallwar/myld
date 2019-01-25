@@ -6,6 +6,7 @@
 #include "elflib.h"
 
 static struct phdr_info *phdr_from_shdr(Elf32_Shdr *shdr);
+static uint32_t phdr_set_flags(uint32_t shdr_flags);
 static void phdr_add_shdr(struct phdr_info *phdr_info, Elf32_Shdr *shdr);
 static uint32_t phdr_shdr_pading(struct phdr_info *phdr_info, Elf32_Shdr *shdr);
 
@@ -39,10 +40,11 @@ vect_t *phdr_gen(void)
         for (uint16_t j = 0; j < phdr_vect->size; ++j) {
             phdr_info = vect_get(phdr_vect, j);
 
-            if (phdr_info->phdr->p_flags == shdr->sh_flags) {
+            if (phdr_info->phdr->p_flags == phdr_set_flags(shdr->sh_flags)) {
                 phdr_add_shdr(phdr_info, shdr);
                 break;
             }
+
             phdr_info = NULL;
         }
 
@@ -69,7 +71,7 @@ static struct phdr_info *phdr_from_shdr(Elf32_Shdr *shdr)
     vect_append(phdr_info->shdr_vect, shdr);
 
     phdr_info->phdr->p_type = PT_LOAD;
-    phdr_info->phdr->p_flags = shdr->sh_flags;
+    phdr_info->phdr->p_flags = phdr_set_flags(shdr->sh_flags);
 
     if(shdr->sh_type == SHT_PROGBITS) {
         phdr_info->phdr->p_filesz = shdr->sh_size;
@@ -78,6 +80,21 @@ static struct phdr_info *phdr_from_shdr(Elf32_Shdr *shdr)
     phdr_info->phdr->p_memsz = shdr->sh_size;
 
     return phdr_info;
+}
+
+static uint32_t phdr_set_flags(uint32_t shdr_flags)
+{
+    uint32_t phdr_flags = PF_R;
+
+    if(shdr_flags & SHF_WRITE) {
+        phdr_flags += PF_W;
+    }
+
+    if (shdr_flags & SHF_EXECINSTR) {
+        phdr_flags += PF_X;
+    }
+
+    return phdr_flags;
 }
 
 static void phdr_add_shdr(struct phdr_info *phdr_info, Elf32_Shdr *shdr)
