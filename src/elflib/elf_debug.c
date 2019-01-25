@@ -43,7 +43,30 @@ void elf_print(elf32_t *elf)
     while((phdr_info = vect_pop(phdr_vect))) {
         char *type = phdr_type(phdr_info->phdr);
 
-        printf("%s 0x%X\n", type, phdr_info->phdr->p_filesz);
+        printf("%s 0x%X ", type, phdr_info->phdr->p_filesz);
+
+        if (phdr_info->phdr->p_flags & PF_R) {
+            printf("R");
+        }
+        else {
+            printf(" ");
+        }
+
+        if (phdr_info->phdr->p_flags & PF_W) {
+            printf("W");
+        }
+        else {
+            printf(" ");
+        }
+
+        if (phdr_info->phdr->p_flags & PF_X) {
+            printf("E");
+        }
+        else {
+            printf(" ");
+        }
+
+        printf("\n");
     }
 }
 
