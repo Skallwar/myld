@@ -46,7 +46,10 @@ vect_t *shdr_list(elf32_t *elf)
 
 static Elf32_Shdr *shdr_cpy(Elf32_Shdr *shdr)
 {
-    Elf32_Shdr *shdr_cpy = malloc(sizeof(*shdr_cpy));
+    assert(shdr);
 
-    return memcpy(shdr_cpy, shdr, sizeof(*shdr));
+    Elf32_Shdr *shdr_copy = malloc(sizeof(*shdr_copy));
+    assert(shdr_copy);
+
+    return memcpy(shdr_copy, shdr, sizeof(*shdr));
 }
