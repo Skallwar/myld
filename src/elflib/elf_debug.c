@@ -38,34 +38,35 @@ void elf_print(elf32_t *elf)
     printf("ELF Segments:\n");
     shdr_list(elf);
     vect_t *phdr_vect = phdr_gen();
-    struct phdr_info *phdr_info = NULL;
+    phdr_t *phdr_t = NULL;
 
-    while((phdr_info = vect_pop(phdr_vect))) {
-        char *type = phdr_type(phdr_info->phdr);
+    while((phdr_t = vect_pop(phdr_vect))) {
+        char *type = phdr_type(phdr_t->phdr);
 
-        printf("%s 0x%X ", type, phdr_info->phdr->p_filesz);
+        printf("%s 0x%X ", type, phdr_t->phdr->p_filesz);
 
-        if (phdr_info->phdr->p_flags & PF_R) {
+        if (phdr_t->phdr->p_flags & PF_R) {
             printf("R");
         }
         else {
             printf(" ");
         }
 
-        if (phdr_info->phdr->p_flags & PF_W) {
+        if (phdr_t->phdr->p_flags & PF_W) {
             printf("W");
         }
         else {
             printf(" ");
         }
 
-        if (phdr_info->phdr->p_flags & PF_X) {
+        if (phdr_t->phdr->p_flags & PF_X) {
             printf("E");
         }
         else {
             printf(" ");
         }
 
+        printf(" %x", phdr_t->phdr->p_vaddr);
         printf("\n");
     }
 }
