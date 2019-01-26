@@ -31,11 +31,17 @@ vect_t *shdr_list(elf32_t *elf)
         Elf32_Ehdr *ehdr = elf_ehdr(elf);
 
         for (uint16_t i = 0; i < ehdr->e_shnum; ++i) {
-            Elf32_Shdr *shdr = elf_shdr(elf, i);
+            shdr_t *shdr_t = malloc(sizeof(*shdr_t));
+            assert(shdr_t);
 
-            if (shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS) {
-                shdr = shdr_cpy(shdr);
-                vect_append(shdr_vect, shdr);
+            shdr_t->old = elf_shdr(elf, i);
+
+            if (shdr_t->old->sh_type == SHT_PROGBITS || shdr_t->old->sh_type == SHT_NOBITS) {
+                shdr_t->mod = shdr_cpy(shdr_t->old);
+                vect_append(shdr_vect, shdr_t);
+            }
+            else {
+                free(shdr_t);
             }
         }
 
