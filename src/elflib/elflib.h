@@ -11,10 +11,15 @@ typedef struct {
     size_t size;
 } elf32_t;
 
-struct phdr_info {
+typedef struct {
     Elf32_Phdr *phdr;
     vect_t *shdr_vect;
-};
+} phdr_t;
+
+typedef struct {
+    Elf32_Shdr *old;
+    Elf32_Shdr *mod;
+} shdr_t;
 
 elf32_t *elf_load(char *path);
 

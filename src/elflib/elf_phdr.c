@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <elf.h>
 
@@ -5,10 +6,11 @@
 
 #include "elflib.h"
 
-static struct phdr_info *phdr_from_shdr(Elf32_Shdr *shdr);
-static uint32_t phdr_set_flags(uint32_t shdr_flags);
-static void phdr_add_shdr(struct phdr_info *phdr_info, Elf32_Shdr *shdr);
-static uint32_t phdr_shdr_pading(struct phdr_info *phdr_info, Elf32_Shdr *shdr);
+static uint32_t phdr_shdr_allign(phdr_t *phdr_t, shdr_t *shdr_t);
+static phdr_t *phdr_new(void);
+static void phdr_add_shdr(phdr_t *phdr_t, shdr_t *shdr_t);
+static uint32_t phdr_flags(shdr_t *shdr_t);
+static void phdr_allign(vect_t *phdr_vect);
 
 Elf32_Phdr *elf_phdr(elf32_t *elf, uint16_t n)
 {
@@ -16,77 +18,84 @@ Elf32_Phdr *elf_phdr(elf32_t *elf, uint16_t n)
 
     Elf32_Ehdr *ehdr = elf_ehdr(elf);
 
-    assert(n <= ehdr->e_phnum);
+    assert(n < ehdr->e_phnum);
 
     return (Elf32_Phdr *)(elf->buf + ehdr->e_phoff + n * ehdr->e_phentsize);
 }
 
 vect_t *phdr_gen(void)
 {
-    static vect_t *phdr_vect = NULL;
-
-    if(!phdr_vect) {
-        phdr_vect = vect_new();
-    }
-
+    vect_t *phdr_vect = vect_new();
     vect_t *shdr_vect = shdr_list(NULL);
 
     assert(shdr_vect);
 
     for (uint16_t i = 0; i < shdr_vect->size; ++i) {
-        Elf32_Shdr *shdr = vect_get(shdr_vect, i);
-        struct phdr_info *phdr_info = NULL;
+        shdr_t *shdr_t = vect_get(shdr_vect, i);
+        phdr_t *phdr_t = NULL;
 
         for (uint16_t j = 0; j < phdr_vect->size; ++j) {
-            phdr_info = vect_get(phdr_vect, j);
+            phdr_t = vect_get(phdr_vect, j);
 
-            if (phdr_info->phdr->p_flags == phdr_set_flags(shdr->sh_flags)) {
-                phdr_add_shdr(phdr_info, shdr);
+            if (phdr_t->phdr->p_flags == phdr_flags(shdr_t)) {
                 break;
             }
 
-            phdr_info = NULL;
+            phdr_t = NULL;
         }
 
-        if (!phdr_info) {
-            vect_append(phdr_vect, phdr_from_shdr(shdr));
-
+        if (!phdr_t) {
+            phdr_t = phdr_new();
+            vect_append(phdr_vect, phdr_t);
         }
+
+        phdr_add_shdr(phdr_t, shdr_t);
     }
+
+    phdr_allign(phdr_vect);
 
     return phdr_vect;
 }
 
-static struct phdr_info *phdr_from_shdr(Elf32_Shdr *shdr)
+static phdr_t *phdr_new(void)
 {
-    struct phdr_info *phdr_info = malloc(sizeof(*phdr_info));
-    assert(phdr_info);
+    phdr_t *phdr_t = calloc(1, sizeof(*phdr_t));
+    assert(phdr_t);
 
-    phdr_info->phdr = malloc(sizeof(*phdr_info->phdr));
-    assert(phdr_info->phdr);
+    phdr_t->phdr = calloc(1, sizeof(*phdr_t->phdr));
+    assert(phdr_t->phdr);
 
-    phdr_info->shdr_vect = vect_new();
-    assert(phdr_info->shdr_vect);
+    phdr_t->shdr_vect = vect_new();
 
-    vect_append(phdr_info->shdr_vect, shdr);
-
-    phdr_info->phdr->p_type = PT_LOAD;
-    phdr_info->phdr->p_flags = phdr_set_flags(shdr->sh_flags);
-
-    if(shdr->sh_type == SHT_PROGBITS) {
-        phdr_info->phdr->p_filesz = shdr->sh_size;
-    }
-
-    phdr_info->phdr->p_memsz = shdr->sh_size;
-
-    return phdr_info;
+    return phdr_t;
 }
 
-static uint32_t phdr_set_flags(uint32_t shdr_flags)
+static void phdr_add_shdr(phdr_t *phdr_t, shdr_t *shdr_t)
 {
+    /* Add shdr to the vect of shdrs in this segment */
+    vect_append(phdr_t->shdr_vect, shdr_t);
+
+    Elf32_Shdr *shdr = shdr_t->mod;
+
+    /* Memory modification */
+    uint32_t padding = phdr_shdr_allign(phdr_t, shdr_t);
+    if (shdr->sh_type == SHT_PROGBITS) {
+        phdr_t->phdr->p_filesz += shdr->sh_size + padding;
+    }
+    phdr_t->phdr->p_memsz += shdr->sh_size + padding;
+
+    phdr_t->phdr->p_type = PT_LOAD;
+    phdr_t->phdr->p_flags = phdr_flags(shdr_t);
+}
+
+static uint32_t phdr_flags(shdr_t *shdr_t)
+{
+    Elf32_Shdr *shdr = shdr_t->mod;
+
+    uint32_t shdr_flags = shdr->sh_flags;
     uint32_t phdr_flags = PF_R;
 
-    if(shdr_flags & SHF_WRITE) {
+    if (shdr_flags & SHF_WRITE) {
         phdr_flags += PF_W;
     }
 
@@ -97,22 +106,49 @@ static uint32_t phdr_set_flags(uint32_t shdr_flags)
     return phdr_flags;
 }
 
-static void phdr_add_shdr(struct phdr_info *phdr_info, Elf32_Shdr *shdr)
+/* Allign all phdr after generation is done */
+static void phdr_allign(vect_t *phdr_vect)
 {
-    vect_append(phdr_info->shdr_vect, shdr);
+    assert(phdr_vect);
 
-    if(shdr->sh_type == SHT_PROGBITS) {
-        phdr_info->phdr->p_filesz += shdr->sh_size;
+    uint32_t padding = 0x1000;
+
+    for (uint16_t i = 0; i < phdr_vect->size; ++i) {
+        phdr_t *phdr_t = vect_get(phdr_vect, i);
+
+        phdr_t->phdr->p_vaddr = padding;
+        padding += phdr_t->phdr->p_filesz;
+
+        for (uint16_t j = 0; j < phdr_t->shdr_vect->size; ++j) {
+            shdr_t *shdr_t = vect_get(phdr_t->shdr_vect, j);
+            shdr_t->mod->sh_addr += padding;
+        }
+
+        padding = padding >> 3*4;
+        ++padding;
+        padding = padding << 3*4;
+
     }
-
-    phdr_info->phdr->p_memsz += shdr->sh_size;
 }
 
-static uint32_t phdr_shdr_pading(struct phdr_info *phdr_info, Elf32_Shdr *shdr)
+static uint32_t phdr_shdr_allign(phdr_t *phdr_t, shdr_t *shdr_t)
 {
+    assert(phdr_t);
+    assert(shdr_t);
+
+    Elf32_Shdr *shdr = shdr_t->mod;
+
+    if (shdr->sh_addralign == 0 || shdr->sh_addralign == 1) {
+        return 0;
+    }
+
+    uint32_t start = phdr_t->phdr->p_filesz;
     uint32_t padding = 0;
 
-    while (phdr_info->phdr->p_filesz % ++padding);
+    while ((start + padding++) % shdr->sh_addralign);
+    --padding;
+
+    shdr->sh_addr = start + padding;
 
     return padding;
 }
