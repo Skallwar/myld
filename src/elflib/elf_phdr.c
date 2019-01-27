@@ -23,10 +23,11 @@ Elf32_Phdr *elf_phdr(elf32_t *elf, uint16_t n)
     return (Elf32_Phdr *)(elf->buf + ehdr->e_phoff + n * ehdr->e_phentsize);
 }
 
-vect_t *phdr_gen(void)
+vect_t *phdr_gen(vect_t *shdr_vect)
 {
+    assert(shdr_vect);
+
     vect_t *phdr_vect = vect_new();
-    vect_t *shdr_vect = shdr_list(NULL);
 
     assert(shdr_vect);
 
@@ -117,6 +118,8 @@ static void phdr_allign(vect_t *phdr_vect)
         phdr_t *phdr_t = vect_get(phdr_vect, i);
 
         phdr_t->phdr->p_vaddr = padding;
+        phdr_t->phdr->p_offset = padding;
+
         padding += phdr_t->phdr->p_filesz;
 
         for (uint16_t j = 0; j < phdr_t->shdr_vect->size; ++j) {

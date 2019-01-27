@@ -19,32 +19,26 @@ Elf32_Shdr *elf_shdr(elf32_t *elf, uint16_t n)
     return (Elf32_Shdr *)(elf->buf + ehdr->e_shoff + n * ehdr->e_shentsize);
 }
 
-vect_t *shdr_list(elf32_t *elf)
+vect_t *shdr_list(elf32_t *elf, vect_t *shdr_vect)
 {
-    static vect_t *shdr_vect = NULL;
+    assert(elf);
+    assert(shdr_vect);
 
-    if (elf) {
-        if (!shdr_vect) {
-            shdr_vect = vect_new();
-        }
+    Elf32_Ehdr *ehdr = elf_ehdr(elf);
 
-        Elf32_Ehdr *ehdr = elf_ehdr(elf);
+    for (uint16_t i = 0; i < ehdr->e_shnum; ++i) {
+        Elf32_Shdr *shdr = elf_shdr(elf, i);
 
-        for (uint16_t i = 0; i < ehdr->e_shnum; ++i) {
+        if (shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS) {
             shdr_t *shdr_t = malloc(sizeof(*shdr_t));
             assert(shdr_t);
 
-            shdr_t->old = elf_shdr(elf, i);
+            shdr_t->elf = elf;
+            shdr_t->old = shdr;
+            shdr_t->mod = shdr_cpy(shdr);
 
-            if (shdr_t->old->sh_type == SHT_PROGBITS || shdr_t->old->sh_type == SHT_NOBITS) {
-                shdr_t->mod = shdr_cpy(shdr_t->old);
-                vect_append(shdr_vect, shdr_t);
-            }
-            else {
-                free(shdr_t);
-            }
+            vect_append(shdr_vect, shdr_t);
         }
-
     }
 
     return shdr_vect;
