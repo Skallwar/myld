@@ -9,67 +9,67 @@ static char *shdr_name(elf32_t *elf, Elf32_Shdr *shdr);
 static char *shdr_type(Elf32_Shdr *shdr);
 static char *phdr_type(Elf32_Phdr *phdr);
 
-void elf_print(elf32_t *elf)
-{
-    assert(elf);
+/* void elf_print(elf32_t *elf) */
+/* { */
+/*     assert(elf); */
 
-    Elf32_Ehdr *ehdr = elf_ehdr(elf);
+/*     Elf32_Ehdr *ehdr = elf_ehdr(elf); */
 
-    printf("ELF Magic: ");
-    for (int i = 0; i < 16; ++i) {
-        printf("%02x ", ehdr->e_ident[i]);
-    }
-    printf("\n");
+/*     printf("ELF Magic: "); */
+/*     for (int i = 0; i < 16; ++i) { */
+/*         printf("%02x ", ehdr->e_ident[i]); */
+/*     } */
+/*     printf("\n"); */
 
-    printf("\n");
+/*     printf("\n"); */
 
-    printf("ELF Sections: \n");
-    for (uint16_t i = 0; i < ehdr->e_shnum; ++i) {
-        Elf32_Shdr *shdr = elf_shdr(elf, i);
+/*     printf("ELF Sections: \n"); */
+/*     for (uint16_t i = 0; i < ehdr->e_shnum; ++i) { */
+/*         Elf32_Shdr *shdr = elf_shdr(elf, i); */
 
-        char *name = shdr_name(elf, shdr);
-        char *type = shdr_type(shdr);
+/*         char *name = shdr_name(elf, shdr); */
+/*         char *type = shdr_type(shdr); */
 
-        printf("[%i] %s %s\n", i, name, type);
-    }
+/*         printf("[%i] %s %s\n", i, name, type); */
+/*     } */
 
-    printf("\n");
+/*     printf("\n"); */
 
-    printf("ELF Segments:\n");
-    shdr_list(elf);
-    vect_t *phdr_vect = phdr_gen();
-    phdr_t *phdr_t = NULL;
+/*     printf("ELF Segments:\n"); */
+/*     shdr_list(elf); */
+/*     vect_t *phdr_vect = phdr_gen(); */
+/*     phdr_t *phdr_t = NULL; */
 
-    while((phdr_t = vect_pop(phdr_vect))) {
-        char *type = phdr_type(phdr_t->phdr);
+/*     while((phdr_t = vect_pop(phdr_vect))) { */
+/*         char *type = phdr_type(phdr_t->phdr); */
 
-        printf("%s 0x%X ", type, phdr_t->phdr->p_filesz);
+/*         printf("%s 0x%X ", type, phdr_t->phdr->p_filesz); */
 
-        if (phdr_t->phdr->p_flags & PF_R) {
-            printf("R");
-        }
-        else {
-            printf(" ");
-        }
+/*         if (phdr_t->phdr->p_flags & PF_R) { */
+/*             printf("R"); */
+/*         } */
+/*         else { */
+/*             printf(" "); */
+/*         } */
 
-        if (phdr_t->phdr->p_flags & PF_W) {
-            printf("W");
-        }
-        else {
-            printf(" ");
-        }
+/*         if (phdr_t->phdr->p_flags & PF_W) { */
+/*             printf("W"); */
+/*         } */
+/*         else { */
+/*             printf(" "); */
+/*         } */
 
-        if (phdr_t->phdr->p_flags & PF_X) {
-            printf("E");
-        }
-        else {
-            printf(" ");
-        }
+/*         if (phdr_t->phdr->p_flags & PF_X) { */
+/*             printf("E"); */
+/*         } */
+/*         else { */
+/*             printf(" "); */
+/*         } */
 
-        printf(" %x", phdr_t->phdr->p_vaddr);
-        printf("\n");
-    }
-}
+/*         printf(" %x", phdr_t->phdr->p_vaddr); */
+/*         printf("\n"); */
+/*     } */
+/* } */
 
 static char *shdr_name(elf32_t *elf, Elf32_Shdr *shdr)
 {
