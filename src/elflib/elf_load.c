@@ -12,7 +12,7 @@
 
 static inline bool elf_isvalid(elf32_t *elf);
 
-elf32_t *elf_load(char *path)
+elf32_t *elf_load(const char *path)
 {
     assert(path);
 
@@ -31,6 +31,7 @@ elf32_t *elf_load(char *path)
     elf32_t *elf = malloc(sizeof(*elf));
     assert(elf);
 
+    elf->path = path;
     elf->buf = malloc(size);
     elf->size = size;
     assert(elf->buf);
@@ -43,6 +44,13 @@ elf32_t *elf_load(char *path)
     assert(elf_isvalid(elf));
 
     return elf;
+}
+
+void elf_save(elf32_t *elf)
+{
+    int out = creat(elf->path, O_WRONLY);
+
+    write(out, elf->buf, elf->size);
 }
 
 static inline bool elf_isvalid(elf32_t *elf)
