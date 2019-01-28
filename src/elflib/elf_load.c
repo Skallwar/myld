@@ -48,9 +48,9 @@ elf32_t *elf_load(const char *path)
 
 void elf_save(elf32_t *elf)
 {
-    int out = creat(elf->path, O_WRONLY);
+    FILE *out = fopen(elf->path, "w+");
 
-    write(out, elf->buf, elf->size);
+    fwrite(elf->buf, sizeof(uint8_t), elf->size, out);
 }
 
 static inline bool elf_isvalid(elf32_t *elf)
