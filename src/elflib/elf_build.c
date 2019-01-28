@@ -5,8 +5,9 @@
 
 #include "elflib.h"
 
-static elf32_t *elf_new(const char *path, vect_t *phdr_vect);
-static void elf_copy(elf32_t *elf, Elf32_Ehdr *ehdr, vect_t *phdr_vect);
+static elf32_t *elf_new(const char *path, size_t size);
+static void elf_build_ehdr(elf32_t *elf, Elf32_Ehdr *ehdr);
+static void elf_build_data(elf32_t *elf, vect_t *phdr_vect);
 static size_t elf_size(vect_t *phdr_vect);
 static uint32_t elf_entry(elf32_t *elf);
 
@@ -16,59 +17,84 @@ elf32_t *elf_build(const char *path, Elf32_Ehdr *ehdr, vect_t *phdr_vect)
     assert(ehdr);
     assert(phdr_vect);
 
-    elf32_t *elf = elf_new(path, phdr_vect);
+    size_t size = elf_size(phdr_vect);
+
+    elf32_t *elf = elf_new(path, size);
     assert(elf);
 
-    elf_copy(elf, ehdr, phdr_vect);
+    elf_build_ehdr(elf, ehdr);
+    elf_build_data(elf, phdr_vect);
 
     return elf;
 }
 
-static elf32_t *elf_new(const char *path, vect_t *phdr_vect)
+static elf32_t *elf_new(const char *path, size_t size)
 {
     assert(path);
-    assert(phdr_vect);
+    assert(size);
 
     elf32_t *elf = malloc(sizeof(*elf));
     assert(elf);
 
     elf->path = path;
-    elf->size = elf_size(phdr_vect);
+    elf->size = size;
     elf->buf = calloc(elf->size, sizeof(*elf->buf));
     assert(elf->buf);
 
     return elf;
 }
 
-static uint32_t elf_entry(elf32_t *elf)
-{
-    return 0x1000;
-}
-
-static void elf_copy(elf32_t *elf, Elf32_Ehdr *ehdr, vect_t *phdr_vect)
+static void elf_build_ehdr(elf32_t *elf, Elf32_Ehdr *ehdr)
 {
     assert(elf);
     assert(ehdr);
+
+    Elf32_Ehdr *ehdr_new = elf_ehdr(elf);
+
+    memcpy(ehdr_new, ehdr, ehdr->e_ehsize);
+
+    ehdr_new->e_type = ET_EXEC;
+
+    ehdr_new->e_entry = elf_entry(elf);
+
+    ehdr_new->e_phoff = sizeof(Elf32_Ehdr);
+    ehdr_new->e_shoff = 0;
+
+    ehdr_new->e_phentsize = sizeof(Elf32_Phdr);
+    ehdr_new->e_phnum = 0;
+
+    ehdr_new->e_shentsize = 0;
+    ehdr_new->e_shnum = 0;
+
+    ehdr_new->e_shstrndx = 0;
+}
+
+static void elf_build_data(elf32_t *elf, vect_t *phdr_vect)
+{
+    assert(elf);
     assert(phdr_vect);
 
-    memcpy(elf->buf, ehdr, sizeof(*ehdr));
-    ehdr = elf_ehdr(elf);
+    Elf32_Ehdr *ehdr = elf_ehdr(elf);
+    ehdr->e_phnum = phdr_vect->size;
 
-    ehdr->e_type = ET_EXEC;
-    ehdr->e_phoff = sizeof(*ehdr);
-    ehdr->e_entry = elf_entry(elf);
+    for (uint16_t i = 0; i < ehdr->e_phnum; ++i) {
+        phdr_t *phdr_t = vect_get(phdr_vect, i);
+        /* Place program header */
+        size_t pos = ehdr->e_phoff + i * ehdr->e_phentsize;
+        memcpy(elf->buf + pos, phdr_t->phdr, ehdr->e_phentsize);
 
-    phdr_t *phdr_t = NULL;
-    while ((phdr_t = vect_pop(phdr_vect))) {
-        shdr_t *shdr_t = NULL;
-        ++ehdr->e_phnum;
-        memcpy(elf->buf + ehdr->e_phoff + ehdr->e_phnum * ehdr->e_phentsize, phdr_t->phdr, sizeof(*phdr_t->phdr));
-        while ((shdr_t = vect_pop(phdr_t->shdr_vect))) {
-            memcpy(elf->buf + shdr_t->mod->sh_offset,
-                   shdr_t->elf->buf + shdr_t->old->sh_offset,
-                   shdr_t->old->sh_size);
+        vect_t *shdr_vect = phdr_t->shdr_vect;
+        for (uint16_t j = 0; j < shdr_vect->size; ++j) {
+            shdr_t *shdr_t = vect_get(shdr_vect, j);
+            memcpy(elf->buf + shdr_t->shdr->sh_addr, shdr_t->data, shdr_t->shdr->sh_size);
         }
+
     }
+}
+
+static uint32_t elf_entry(elf32_t *elf)
+{
+    return 0x1000;
 }
 
 static size_t elf_size(vect_t *phdr_vect)
