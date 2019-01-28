@@ -18,9 +18,8 @@ typedef struct {
 } phdr_t;
 
 typedef struct {
-    elf32_t *elf;
-    Elf32_Shdr *old;
-    Elf32_Shdr *mod;
+    Elf32_Shdr *shdr;
+    uint8_t *data;
 } shdr_t;
 
 elf32_t *elf_load(const char *path);

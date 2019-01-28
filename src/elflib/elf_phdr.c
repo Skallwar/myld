@@ -68,6 +68,8 @@ static phdr_t *phdr_new(void)
 
     phdr_t->shdr_vect = vect_new();
 
+    phdr_t->phdr->p_align = 0x1000;
+
     return phdr_t;
 }
 
@@ -76,7 +78,7 @@ static void phdr_add_shdr(phdr_t *phdr_t, shdr_t *shdr_t)
     /* Add shdr to the vect of shdrs in this segment */
     vect_append(phdr_t->shdr_vect, shdr_t);
 
-    Elf32_Shdr *shdr = shdr_t->mod;
+    Elf32_Shdr *shdr = shdr_t->shdr;
 
     /* Memory modification */
     uint32_t padding = phdr_shdr_allign(phdr_t, shdr_t);
@@ -91,7 +93,7 @@ static void phdr_add_shdr(phdr_t *phdr_t, shdr_t *shdr_t)
 
 static uint32_t phdr_flags(shdr_t *shdr_t)
 {
-    Elf32_Shdr *shdr = shdr_t->mod;
+    Elf32_Shdr *shdr = shdr_t->shdr;
 
     uint32_t shdr_flags = shdr->sh_flags;
     uint32_t phdr_flags = PF_R;
@@ -118,13 +120,14 @@ static void phdr_allign(vect_t *phdr_vect)
         phdr_t *phdr_t = vect_get(phdr_vect, i);
 
         phdr_t->phdr->p_vaddr = padding;
+        phdr_t->phdr->p_paddr = padding;
         phdr_t->phdr->p_offset = padding;
 
         padding += phdr_t->phdr->p_filesz;
 
         for (uint16_t j = 0; j < phdr_t->shdr_vect->size; ++j) {
             shdr_t *shdr_t = vect_get(phdr_t->shdr_vect, j);
-            shdr_t->mod->sh_addr += padding;
+            shdr_t->shdr->sh_addr += padding;
         }
 
         padding = padding >> 3*4;
@@ -139,7 +142,7 @@ static uint32_t phdr_shdr_allign(phdr_t *phdr_t, shdr_t *shdr_t)
     assert(phdr_t);
     assert(shdr_t);
 
-    Elf32_Shdr *shdr = shdr_t->mod;
+    Elf32_Shdr *shdr = shdr_t->shdr;
 
     if (shdr->sh_addralign == 0 || shdr->sh_addralign == 1) {
         return 0;

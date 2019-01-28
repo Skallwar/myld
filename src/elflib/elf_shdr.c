@@ -33,9 +33,11 @@ vect_t *shdr_list(elf32_t *elf, vect_t *shdr_vect)
             shdr_t *shdr_t = malloc(sizeof(*shdr_t));
             assert(shdr_t);
 
-            shdr_t->elf = elf;
-            shdr_t->old = shdr;
-            shdr_t->mod = shdr_cpy(shdr);
+            shdr_t->shdr = shdr;
+
+            shdr_t->data = malloc(shdr->sh_size);
+            assert(shdr_t->data);
+            memcpy(shdr_t->data, elf->buf + shdr->sh_offset, shdr->sh_size);
 
             vect_append(shdr_vect, shdr_t);
         }
