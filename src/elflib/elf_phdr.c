@@ -6,11 +6,10 @@
 
 #include "elflib.h"
 
-static uint32_t phdr_shdr_allign(phdr_t *phdr_t, shdr_t *shdr_t);
-static phdr_t *phdr_new(void);
+static phdr_t *phdr_new(uint32_t flags);
 static void phdr_add_shdr(phdr_t *phdr_t, shdr_t *shdr_t);
-static uint32_t phdr_flags(shdr_t *shdr_t);
-static void phdr_allign(vect_t *phdr_vect);
+static uint32_t shdr_align(uint32_t addr, uint32_t align);
+static uint32_t phdr_flags(uint32_t flags);
 
 Elf32_Phdr *elf_phdr(elf32_t *elf, uint16_t n)
 {
@@ -29,73 +28,111 @@ vect_t *phdr_gen(vect_t *shdr_vect)
 
     vect_t *phdr_vect = vect_new();
 
-    assert(shdr_vect);
-
-    for (uint16_t i = 0; i < shdr_vect->size; ++i) {
-        shdr_t *shdr_t = vect_get(shdr_vect, i);
+    shdr_t *shdr_t;
+    while ((shdr_t = vect_pop(shdr_vect))) {
         phdr_t *phdr_t = NULL;
 
-        for (uint16_t j = 0; j < phdr_vect->size; ++j) {
-            phdr_t = vect_get(phdr_vect, j);
+        /* Compute flags for this section */
+        uint32_t flags = phdr_flags(shdr_t->shdr->sh_flags);
 
-            if (phdr_t->phdr->p_flags == phdr_flags(shdr_t)) {
+        for (uint16_t i = 0; i < phdr_vect->size; ++i) {
+            phdr_t = vect_get(phdr_vect, i);
+
+            /* Select this phdr if flags are matching */
+            if (phdr_t->phdr->p_flags == flags) {
                 break;
             }
 
             phdr_t = NULL;
         }
 
+        /* If no segment have been found create one */
         if (!phdr_t) {
-            phdr_t = phdr_new();
+            phdr_t = phdr_new(flags);
             vect_append(phdr_vect, phdr_t);
         }
 
+        /* Add section to segment and add segment in the vect */
         phdr_add_shdr(phdr_t, shdr_t);
     }
-
-    phdr_allign(phdr_vect);
 
     return phdr_vect;
 }
 
-static phdr_t *phdr_new(void)
+static phdr_t *phdr_new(uint32_t flags)
 {
+    static uint32_t offset = 0x2000;
+
     phdr_t *phdr_t = calloc(1, sizeof(*phdr_t));
     assert(phdr_t);
 
-    phdr_t->phdr = calloc(1, sizeof(*phdr_t->phdr));
+    Elf32_Phdr *phdr = calloc(1, sizeof(*phdr_t->phdr));
+    phdr_t->phdr = phdr;
     assert(phdr_t->phdr);
 
     phdr_t->shdr_vect = vect_new();
 
-    phdr_t->phdr->p_align = 0x1000;
+    /* If it's the executable segment it's need to be at 0x1000 */
+    uint32_t align;
+    if (flags & PF_R && flags & PF_X) {
+        align = 0x1000;
+    }
+    else {
+        align = offset;
+        offset += 0x1000;
+    }
+    phdr->p_offset = align;
+    phdr->p_vaddr = align;
+    phdr->p_paddr = align;
+
+    phdr->p_type = PT_LOAD;
+    phdr->p_flags = flags;
+
+    phdr->p_align = 0x1000;
 
     return phdr_t;
 }
 
 static void phdr_add_shdr(phdr_t *phdr_t, shdr_t *shdr_t)
 {
-    /* Add shdr to the vect of shdrs in this segment */
+    assert(phdr_t);
+    assert(shdr_t);
+
+    /* Add shdr the vect */
     vect_append(phdr_t->shdr_vect, shdr_t);
 
+    Elf32_Phdr *phdr = phdr_t->phdr;
     Elf32_Shdr *shdr = shdr_t->shdr;
 
-    /* Memory modification */
-    uint32_t padding = phdr_shdr_allign(phdr_t, shdr_t);
-    if (shdr->sh_type == SHT_PROGBITS) {
-        phdr_t->phdr->p_filesz += shdr->sh_size + padding;
-    }
-    phdr_t->phdr->p_memsz += shdr->sh_size + padding;
+    /* Compute new shdr position in file and in memory (alignment included) */
+    uint32_t align = shdr_align(phdr->p_memsz, shdr->sh_addralign);
+    shdr->sh_offset = phdr->p_offset + phdr->p_filesz;
+    shdr->sh_addr = phdr->p_vaddr + phdr->p_memsz + align;
 
-    phdr_t->phdr->p_type = PT_LOAD;
-    phdr_t->phdr->p_flags = phdr_flags(shdr_t);
+    /* Compute new size for phdr */
+    if (shdr->sh_type == SHT_PROGBITS) {
+        phdr->p_filesz += shdr->sh_size + align;
+    }
+    phdr->p_memsz += shdr->sh_size + align;
 }
 
-static uint32_t phdr_flags(shdr_t *shdr_t)
+static uint32_t shdr_align(uint32_t addr, uint32_t align)
 {
-    Elf32_Shdr *shdr = shdr_t->shdr;
+    if (align == 0 || align == 1) {
+        return 0;
+    }
 
-    uint32_t shdr_flags = shdr->sh_flags;
+    uint32_t offset = 0;
+
+    while ((addr + offset) % align) {
+        ++offset;
+    }
+
+    return offset;
+}
+
+static uint32_t phdr_flags(uint32_t shdr_flags)
+{
     uint32_t phdr_flags = PF_R;
 
     if (shdr_flags & SHF_WRITE) {
@@ -107,54 +144,4 @@ static uint32_t phdr_flags(shdr_t *shdr_t)
     }
 
     return phdr_flags;
-}
-
-/* Allign all phdr after generation is done */
-static void phdr_allign(vect_t *phdr_vect)
-{
-    assert(phdr_vect);
-
-    uint32_t padding = 0x1000;
-
-    for (uint16_t i = 0; i < phdr_vect->size; ++i) {
-        phdr_t *phdr_t = vect_get(phdr_vect, i);
-
-        phdr_t->phdr->p_vaddr = padding;
-        phdr_t->phdr->p_paddr = padding;
-        phdr_t->phdr->p_offset = padding;
-
-        padding += phdr_t->phdr->p_filesz;
-
-        for (uint16_t j = 0; j < phdr_t->shdr_vect->size; ++j) {
-            shdr_t *shdr_t = vect_get(phdr_t->shdr_vect, j);
-            shdr_t->shdr->sh_addr += padding;
-        }
-
-        padding = padding >> 3*4;
-        ++padding;
-        padding = padding << 3*4;
-
-    }
-}
-
-static uint32_t phdr_shdr_allign(phdr_t *phdr_t, shdr_t *shdr_t)
-{
-    assert(phdr_t);
-    assert(shdr_t);
-
-    Elf32_Shdr *shdr = shdr_t->shdr;
-
-    if (shdr->sh_addralign == 0 || shdr->sh_addralign == 1) {
-        return 0;
-    }
-
-    uint32_t start = phdr_t->phdr->p_filesz;
-    uint32_t padding = 0;
-
-    while ((start + padding++) % shdr->sh_addralign);
-    --padding;
-
-    shdr->sh_addr = start + padding;
-
-    return padding;
 }
