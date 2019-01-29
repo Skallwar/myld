@@ -12,4 +12,5 @@ add_executable(myld
 target_link_libraries(myld
     elflib
     vect
+    -fsanitize=address -fno-omit-frame-pointer  #ASAN
 )
