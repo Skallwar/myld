@@ -11,6 +11,30 @@ static void elf_build_data(elf32_t *elf, vect_t *phdr_vect);
 static size_t elf_size(vect_t *phdr_vect);
 static uint32_t elf_entry(elf32_t *elf);
 
+elf32_t *elf_new(const char *path, size_t size)
+{
+    assert(path);
+    assert(size);
+
+    elf32_t *elf = malloc(sizeof(*elf));
+    assert(elf);
+
+    elf->path = path;
+    elf->size = size;
+    elf->buf = calloc(elf->size, sizeof(*elf->buf));
+    assert(elf->buf);
+
+    return elf;
+}
+
+void elf_free(elf32_t *elf)
+{
+    assert(elf);
+
+    free(elf->buf);
+    free(elf);
+}
+
 elf32_t *elf_build(const char *path, Elf32_Ehdr *ehdr, vect_t *phdr_vect)
 {
     assert(path);
@@ -24,22 +48,6 @@ elf32_t *elf_build(const char *path, Elf32_Ehdr *ehdr, vect_t *phdr_vect)
 
     elf_build_ehdr(elf, ehdr);
     elf_build_data(elf, phdr_vect);
-
-    return elf;
-}
-
-static elf32_t *elf_new(const char *path, size_t size)
-{
-    assert(path);
-    assert(size);
-
-    elf32_t *elf = malloc(sizeof(*elf));
-    assert(elf);
-
-    elf->path = path;
-    elf->size = size;
-    elf->buf = calloc(elf->size, sizeof(*elf->buf));
-    assert(elf->buf);
 
     return elf;
 }

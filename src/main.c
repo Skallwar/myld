@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "elflib/elflib.h"
 
 int main()
@@ -11,7 +13,12 @@ int main()
 
     vect_t *phdr_vect = phdr_gen(shdr_vect);
 
+    vect_free(shdr_vect);
+
     elf32_t *elf_out = elf_build("out", ehdr, phdr_vect);
 
     elf_save(elf_out);
+
+    free(elf);
+    free(elf_out);
 }
